@@ -10,6 +10,7 @@
 // these handlers perform actions on the seat
 static struct cmd_handler seat_action_handlers[] = {
 	{ "cursor", seat_cmd_cursor },
+	{ "keyboard", seat_cmd_keyboard },
 };
 
 // must be in order for the bsearch
