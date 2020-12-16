@@ -218,7 +218,7 @@ void output_layer_for_each_surface(struct sway_output *output,
 			.height = surface->current.height,
 			.rotation = 0,
 		};
-		wlr_layer_surface_v1_for_each_surface(wlr_layer_surface_v1,
+		sway_layer_surface_for_each_surface(layer_surface,
 			output_for_each_surface_iterator, &data);
 	}
 }
@@ -256,7 +256,7 @@ void output_layer_for_each_popup_surface(struct sway_output *output,
 			.height = surface->current.height,
 			.rotation = 0,
 		};
-		wlr_layer_surface_v1_for_each_popup_surface(wlr_layer_surface_v1,
+		sway_layer_surface_for_each_popup_surface(layer_surface,
 			output_for_each_surface_iterator, &data);
 	}
 }
