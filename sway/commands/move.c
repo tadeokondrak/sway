@@ -247,7 +247,8 @@ static void container_move_to_container(struct sway_container *container,
 	container->width_fraction = container->height_fraction = 0;
 
 	if (destination->view) {
-		container_add_sibling(destination, container, 1);
+		container_add_sibling(
+			destination, container, destination->pending.fill_order);
 	} else {
 		container_add_child(destination, container);
 	}

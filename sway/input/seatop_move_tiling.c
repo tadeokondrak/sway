@@ -260,16 +260,18 @@ static void finalize_move(struct sway_seat *seat) {
 			if (edge && !is_parallel(layout, edge)) {
 				enum sway_container_layout new_layout = edge == WLR_EDGE_TOP ||
 					edge == WLR_EDGE_BOTTOM ? L_VERT : L_HORIZ;
-				container_split(target, new_layout);
+				container_split(target, new_layout, target->pending.fill_order);
 			}
-			container_add_sibling(target, con, after);
+			enum sway_container_fill_order fill_order =
+				after ? LFO_DEFAULT : LFO_REVERSE;
+			container_add_sibling(target, con, fill_order);
 			ipc_event_window(con, "move");
 		}
 	} else {
 		// Target is a workspace which requires splitting
 		enum sway_container_layout new_layout = edge == WLR_EDGE_TOP ||
 			edge == WLR_EDGE_BOTTOM ? L_VERT : L_HORIZ;
-		workspace_split(new_ws, new_layout);
+		workspace_split(new_ws, new_layout, new_ws->fill_order);
 		workspace_insert_tiling(new_ws, con, after);
 	}
 

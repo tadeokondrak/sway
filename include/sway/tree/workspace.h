@@ -31,6 +31,7 @@ struct sway_workspace {
 	int width, height;
 	enum sway_container_layout layout;
 	enum sway_container_layout prev_split_layout;
+	enum sway_container_fill_order fill_order;
 
 	struct side_gaps current_gaps;
 	int gaps_inner;
@@ -131,7 +132,8 @@ void workspace_remove_gaps(struct sway_workspace *ws);
 void workspace_add_gaps(struct sway_workspace *ws);
 
 struct sway_container *workspace_split(struct sway_workspace *workspace,
-		enum sway_container_layout layout);
+		enum sway_container_layout layout,
+		enum sway_container_fill_order fill_order);
 
 void workspace_update_representation(struct sway_workspace *ws);
 

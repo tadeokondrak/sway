@@ -593,24 +593,32 @@ void container_calculate_title_height(struct sway_container *container) {
  * If buffer is not NULL, also populate the buffer with the representation.
  */
 size_t container_build_representation(enum sway_container_layout layout,
-		list_t *children, char *buffer) {
-	size_t len = 2;
+		enum sway_container_fill_order fill_order, list_t *children,
+		char *buffer) {
+	size_t len = 1;
 	switch (layout) {
 	case L_VERT:
-		lenient_strcat(buffer, "V[");
+		lenient_strcat(buffer, "V");
 		break;
 	case L_HORIZ:
-		lenient_strcat(buffer, "H[");
+		lenient_strcat(buffer, "H");
 		break;
 	case L_TABBED:
-		lenient_strcat(buffer, "T[");
+		lenient_strcat(buffer, "T");
 		break;
 	case L_STACKED:
-		lenient_strcat(buffer, "S[");
+		lenient_strcat(buffer, "S");
 		break;
 	case L_NONE:
-		lenient_strcat(buffer, "D[");
+		lenient_strcat(buffer, "D");
 		break;
+	}
+	if (fill_order == LFO_DEFAULT) {
+		len += 1;
+		lenient_strcat(buffer, "[");
+	} else {
+		len += 2;
+		lenient_strcat(buffer, "r[");
 	}
 	for (int i = 0; i < children->length; ++i) {
 		if (i != 0) {
@@ -643,15 +651,15 @@ size_t container_build_representation(enum sway_container_layout layout,
 void container_update_representation(struct sway_container *con) {
 	if (!con->view) {
 		size_t len = container_build_representation(con->pending.layout,
-				con->pending.children, NULL);
+			con->pending.fill_order, con->pending.children, NULL);
 		free(con->formatted_title);
 		con->formatted_title = calloc(len + 1, sizeof(char));
 		if (!sway_assert(con->formatted_title,
 					"Unable to allocate title string")) {
 			return;
 		}
-		container_build_representation(con->pending.layout, con->pending.children,
-				con->formatted_title);
+		container_build_representation(con->pending.layout, con->pending.fill_order,
+			con->pending.children, con->formatted_title);
 		container_calculate_title_height(con);
 		container_update_title_textures(con);
 	}
@@ -853,7 +861,9 @@ void container_set_floating(struct sway_container *container, bool enable) {
 			seat_get_focus_inactive_tiling(seat, workspace);
 		if (reference) {
 			if (reference->view) {
-				container_add_sibling(reference, container, 1);
+				enum sway_container_fill_order fill_order =
+					container_parent_fill_order(reference);
+				container_add_sibling(reference, container, fill_order);
 			} else {
 				container_add_child(reference, container);
 			}
@@ -1295,12 +1305,31 @@ enum sway_container_layout container_parent_layout(struct sway_container *con) {
 	return L_NONE;
 }
 
+enum sway_container_fill_order container_parent_fill_order(
+		struct sway_container *con) {
+	if (con->pending.parent) {
+		return con->pending.parent->pending.fill_order;
+	}
+	if (con->pending.workspace) {
+		return con->pending.workspace->fill_order;
+	}
+	return LFO_DEFAULT;
+}
+
 enum sway_container_layout container_current_parent_layout(
 		struct sway_container *con) {
 	if (con->current.parent) {
 		return con->current.parent->current.layout;
 	}
 	return con->current.workspace->current.layout;
+}
+
+enum sway_container_fill_order container_current_parent_fill_order(
+		struct sway_container *con) {
+	if (con->current.parent) {
+		return con->current.parent->current.fill_order;
+	}
+	return con->current.workspace->fill_order;
 }
 
 list_t *container_get_siblings(struct sway_container *container) {
@@ -1358,13 +1387,17 @@ void container_insert_child(struct sway_container *parent,
 }
 
 void container_add_sibling(struct sway_container *fixed,
-		struct sway_container *active, bool after) {
+		struct sway_container *active,
+		enum sway_container_fill_order fill_order) {
 	if (active->pending.workspace) {
 		container_detach(active);
 	}
 	list_t *siblings = container_get_siblings(fixed);
 	int index = list_find(siblings, fixed);
-	list_insert(siblings, index + after, active);
+	if (fill_order == LFO_DEFAULT) {
+		index += 1;
+	}
+	list_insert(siblings, index, active);
 	active->pending.parent = fixed->pending.parent;
 	active->pending.workspace = fixed->pending.workspace;
 	container_for_each_child(active, set_workspace, NULL);
@@ -1377,7 +1410,10 @@ void container_add_child(struct sway_container *parent,
 	if (child->pending.workspace) {
 		container_detach(child);
 	}
-	list_add(parent->pending.children, child);
+	if (parent->pending.fill_order == LFO_DEFAULT)
+		list_add(parent->pending.children, child);
+	else
+		list_insert(parent->pending.children, 0, child);
 	child->pending.parent = parent;
 	child->pending.workspace = parent->pending.workspace;
 	container_for_each_child(child, set_workspace, NULL);
@@ -1434,7 +1470,9 @@ void container_replace(struct sway_container *container,
 	if (container->pending.parent || container->pending.workspace) {
 		float width_fraction = container->width_fraction;
 		float height_fraction = container->height_fraction;
-		container_add_sibling(container, replacement, 1);
+		enum sway_container_fill_order fill_order =
+			container_parent_fill_order(container);
+		container_add_sibling(container, replacement, fill_order);
 		container_detach(container);
 		replacement->width_fraction = width_fraction;
 		replacement->height_fraction = height_fraction;
@@ -1456,7 +1494,8 @@ void container_replace(struct sway_container *container,
 }
 
 struct sway_container *container_split(struct sway_container *child,
-		enum sway_container_layout layout) {
+		enum sway_container_layout layout,
+		enum sway_container_fill_order fill_order) {
 	// i3 doesn't split singleton H/V containers
 	// https://github.com/i3/i3/blob/3cd1c45eba6de073bc4300eebb4e1cc1a0c4479a/src/tree.c#L354
 	if (child->pending.parent || child->pending.workspace) {
@@ -1469,9 +1508,11 @@ struct sway_container *container_split(struct sway_container *child,
 			if (current == L_HORIZ || current == L_VERT) {
 				if (child->pending.parent) {
 					child->pending.parent->pending.layout = layout;
+					child->pending.parent->pending.fill_order = fill_order;
 					container_update_representation(child->pending.parent);
 				} else {
 					child->pending.workspace->layout = layout;
+					child->pending.workspace->fill_order = fill_order;
 					workspace_update_representation(child->pending.workspace);
 				}
 				return child;
@@ -1497,6 +1538,7 @@ struct sway_container *container_split(struct sway_container *child,
 	cont->pending.x = child->pending.x;
 	cont->pending.y = child->pending.y;
 	cont->pending.layout = layout;
+	cont->pending.fill_order = fill_order;
 
 	container_replace(child, cont);
 	container_add_child(cont, child);

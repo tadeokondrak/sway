@@ -88,7 +88,7 @@ The following commands may only be used in the configuration file.
 	It can be disabled by setting the command to a single dash:
 	_swaynag\_command -_
 
-*workspace_layout* default|stacking|tabbed
+*workspace_layout* default|stacking|tabbed [reverse]
 	Specifies the initial layout for new containers in an empty workspace.
 
 *xwayland* enable|disable|force
@@ -173,14 +173,18 @@ set|plus|minus <amount>
 	This can also be used with criteria to set an idle inhibitor for any
 	existing view or with _for_window_ to set idle inhibitors for future views.
 
-*layout* default|splith|splitv|stacking|tabbed
+*layout* default|splith|splitv|stacking|tabbed [reverse]
 	Sets the layout mode of the focused container.
+	TODO new docs
 
 *layout* toggle [split|all]
 	Cycles the layout mode of the focused container though a preset list of
 	layouts. If no argument is given, then it cycles through stacking, tabbed
 	and the last split layout. If _split_ is given, then it cycles through
 	splith and splitv. If _all_ is given, then it cycles through every layout.
+
+*layout* fill_order [default|reverse|toggle]
+	TODO docs
 
 *layout* toggle [split|tabbed|stacking|splitv|splith] [split|tabbed|stacking|splitv|splith]...
 	Cycles the layout mode of the focused container through a list of layouts.
@@ -319,10 +323,11 @@ set|plus|minus <amount>
 	established by the *seat* subcommand of the same name. See
 	*sway-input*(5) for more ways to affect inhibitors.
 
-*split* vertical|v|horizontal|h|toggle|t
+*split* vertical|v|horizontal|h|toggle|t|left|l|right|r|up|u|down|d
 	Splits the current container, vertically or horizontally. When _toggle_ is
 	specified, the current container is split opposite to the parent
 	container's layout.
+	TODO new docs
 
 *splith*
 	Equivalent to *split horizontal*

@@ -479,6 +479,7 @@ struct sway_config {
 	char *floating_scroll_right_cmd;
 	enum sway_container_layout default_orientation;
 	enum sway_container_layout default_layout;
+	enum sway_container_fill_order default_fill_order;
 	char *font;
 	size_t font_height;
 	size_t font_baseline;

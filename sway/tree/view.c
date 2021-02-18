@@ -749,7 +749,9 @@ void view_map(struct sway_view *view, struct wlr_surface *wlr_surface,
 
 	struct sway_container *container = view->container;
 	if (target_sibling) {
-		container_add_sibling(target_sibling, container, 1);
+		enum sway_container_fill_order fill_order =
+			container_parent_fill_order(target_sibling);
+		container_add_sibling(target_sibling, container, fill_order);
 	} else if (ws) {
 		container = workspace_add_tiling(ws, container);
 	}

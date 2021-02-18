@@ -18,6 +18,11 @@ enum sway_container_layout {
 	L_TABBED,
 };
 
+enum sway_container_fill_order {
+	LFO_DEFAULT,
+	LFO_REVERSE,
+};
+
 enum sway_container_border {
 	B_NONE,
 	B_PIXEL,
@@ -41,6 +46,7 @@ enum wlr_direction;
 struct sway_container_state {
 	// Container properties
 	enum sway_container_layout layout;
+	enum sway_container_fill_order fill_order;
 	double x, y;
 	double width, height;
 
@@ -190,7 +196,8 @@ void container_update_title_textures(struct sway_container *container);
 void container_calculate_title_height(struct sway_container *container);
 
 size_t container_build_representation(enum sway_container_layout layout,
-		list_t *children, char *buffer);
+		enum sway_container_fill_order fill_order, list_t *children,
+		char *buffer);
 
 void container_update_representation(struct sway_container *container);
 
@@ -298,7 +305,13 @@ void container_discover_outputs(struct sway_container *con);
 
 enum sway_container_layout container_parent_layout(struct sway_container *con);
 
+enum sway_container_fill_order container_parent_fill_order(
+		struct sway_container *con);
+
 enum sway_container_layout container_current_parent_layout(
+		struct sway_container *con);
+
+enum sway_container_fill_order container_current_parent_fill_order(
 		struct sway_container *con);
 
 list_t *container_get_siblings(struct sway_container *container);
@@ -315,11 +328,9 @@ void container_add_child(struct sway_container *parent,
 void container_insert_child(struct sway_container *parent,
 		struct sway_container *child, int i);
 
-/**
- * Side should be 0 to add before, or 1 to add after.
- */
 void container_add_sibling(struct sway_container *parent,
-		struct sway_container *child, bool after);
+		struct sway_container *child,
+		enum sway_container_fill_order fill_order);
 
 void container_detach(struct sway_container *child);
 
@@ -329,7 +340,8 @@ void container_replace(struct sway_container *container,
 void container_swap(struct sway_container *con1, struct sway_container *con2);
 
 struct sway_container *container_split(struct sway_container *child,
-		enum sway_container_layout layout);
+		enum sway_container_layout layout,
+		enum sway_container_fill_order fill_order);
 
 bool container_is_transient_for(struct sway_container *child,
 		struct sway_container *ancestor);

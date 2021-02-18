@@ -365,9 +365,19 @@ static void render_view(struct sway_output *output, pixman_region32_t *damage,
 	float output_scale = output->wlr_output->scale;
 	float color[4];
 	struct sway_container_state *state = &con->current;
+	list_t *siblings = container_get_current_siblings(con);
+	enum sway_container_layout layout =
+		container_current_parent_layout(con);
+	enum sway_container_fill_order fill_order =
+		container_current_parent_fill_order(con);
 
 	if (state->border_left) {
-		memcpy(&color, colors->child_border, sizeof(float) * 4);
+		if (!container_is_current_floating(con) && siblings->length == 1
+				&& layout == L_HORIZ && fill_order == LFO_REVERSE) {
+			memcpy(&color, colors->indicator, sizeof(float) * 4);
+		} else {
+			memcpy(&color, colors->child_border, sizeof(float) * 4);
+		}
 		premultiply_alpha(color, con->alpha);
 		box.x = floor(state->x);
 		box.y = floor(state->content_y);
@@ -377,12 +387,9 @@ static void render_view(struct sway_output *output, pixman_region32_t *damage,
 		render_rect(output, damage, &box, color);
 	}
 
-	list_t *siblings = container_get_current_siblings(con);
-	enum sway_container_layout layout =
-		container_current_parent_layout(con);
-
 	if (state->border_right) {
-		if (!container_is_current_floating(con) && siblings->length == 1 && layout == L_HORIZ) {
+		if (!container_is_current_floating(con) && siblings->length == 1
+				&& layout == L_HORIZ && fill_order == LFO_DEFAULT) {
 			memcpy(&color, colors->indicator, sizeof(float) * 4);
 		} else {
 			memcpy(&color, colors->child_border, sizeof(float) * 4);
@@ -397,7 +404,8 @@ static void render_view(struct sway_output *output, pixman_region32_t *damage,
 	}
 
 	if (state->border_bottom) {
-		if (!container_is_current_floating(con) && siblings->length == 1 && layout == L_VERT) {
+		if (!container_is_current_floating(con) && siblings->length == 1
+				&& layout == L_VERT && fill_order == LFO_DEFAULT) {
 			memcpy(&color, colors->indicator, sizeof(float) * 4);
 		} else {
 			memcpy(&color, colors->child_border, sizeof(float) * 4);
@@ -435,16 +443,41 @@ static void render_titlebar(struct sway_output *output,
 	int titlebar_h_padding = config->titlebar_h_padding;
 	int titlebar_v_padding = config->titlebar_v_padding;
 	enum alignment title_align = config->title_align;
+	list_t *siblings = container_get_current_siblings(con);
+	enum sway_container_layout layout =
+		container_current_parent_layout(con);
+	enum sway_container_fill_order fill_order =
+		container_current_parent_fill_order(con);
+	bool draw_indicator = !container_is_current_floating(con)
+		&& siblings->length == 1 && layout == L_VERT
+		&& fill_order == LFO_REVERSE;
+	int titlebar_border_top_thickness = draw_indicator
+		? config->border_thickness : config->titlebar_border_thickness;
+	int titlebar_border_vert_thickness =
+		titlebar_border_thickness + titlebar_border_top_thickness;
 
 	// Single pixel bar above title
-	memcpy(&color, colors->border, sizeof(float) * 4);
-	premultiply_alpha(color, con->alpha);
-	box.x = x;
-	box.y = y;
-	box.width = width;
-	box.height = titlebar_border_thickness;
-	scale_box(&box, output_scale);
-	render_rect(output, output_damage, &box, color);
+	if (draw_indicator) {
+		memcpy(&color, colors->indicator, sizeof(float) * 4);
+		premultiply_alpha(color, con->alpha);
+		box.x = x;
+		box.y = y;
+		box.width = width;
+		box.height = config->border_thickness;
+		scale_box(&box, output_scale);
+		render_rect(output, output_damage, &box, color);
+		memcpy(&color, colors->border, sizeof(float) * 4);
+		premultiply_alpha(color, con->alpha);
+	} else {
+		memcpy(&color, colors->border, sizeof(float) * 4);
+		premultiply_alpha(color, con->alpha);
+		box.x = x;
+		box.y = y;
+		box.width = width;
+		box.height = titlebar_border_thickness;
+		scale_box(&box, output_scale);
+		render_rect(output, output_damage, &box, color);
+	}
 
 	// Single pixel bar below title
 	box.x = x;
@@ -456,29 +489,29 @@ static void render_titlebar(struct sway_output *output,
 
 	// Single pixel left edge
 	box.x = x;
-	box.y = y + titlebar_border_thickness;
+	box.y = y + titlebar_border_top_thickness;
 	box.width = titlebar_border_thickness;
-	box.height = container_titlebar_height() - titlebar_border_thickness * 2;
+	box.height = container_titlebar_height() - titlebar_border_vert_thickness;
 	scale_box(&box, output_scale);
 	render_rect(output, output_damage, &box, color);
 
 	// Single pixel right edge
 	box.x = x + width - titlebar_border_thickness;
-	box.y = y + titlebar_border_thickness;
+	box.y = y + titlebar_border_top_thickness;
 	box.width = titlebar_border_thickness;
-	box.height = container_titlebar_height() - titlebar_border_thickness * 2;
+	box.height = container_titlebar_height() - titlebar_border_vert_thickness;
 	scale_box(&box, output_scale);
 	render_rect(output, output_damage, &box, color);
 
 	int inner_x = x - output_x + titlebar_h_padding;
-	int bg_y = y + titlebar_border_thickness;
+	int bg_y = y + titlebar_border_top_thickness;
 	size_t inner_width = width - titlebar_h_padding * 2;
 
 	// output-buffer local
 	int ob_inner_x = round(inner_x * output_scale);
 	int ob_inner_width = scale_length(inner_width, inner_x, output_scale);
 	int ob_bg_height = scale_length(
-			(titlebar_v_padding - titlebar_border_thickness) * 2 +
+			titlebar_v_padding * 2 - titlebar_border_vert_thickness +
 			config->font_height, bg_y, output_scale);
 
 	// Marks
@@ -523,7 +556,7 @@ static void render_titlebar(struct sway_output *output,
 		memcpy(&color, colors->background, sizeof(float) * 4);
 		premultiply_alpha(color, con->alpha);
 		box.x = texture_box.x + round(output_x * output_scale);
-		box.y = round((y + titlebar_border_thickness) * output_scale);
+		box.y = round((y + titlebar_border_top_thickness) * output_scale);
 		box.width = texture_box.width;
 		box.height = ob_padding_above;
 		render_rect(output, output_damage, &box, color);
@@ -555,7 +588,7 @@ static void render_titlebar(struct sway_output *output,
 		// in which case we need to pad it above and below.
 		int ob_padding_above = round((config->font_baseline -
 					con->title_baseline + titlebar_v_padding -
-					titlebar_border_thickness) * output_scale);
+					titlebar_border_top_thickness) * output_scale);
 		int ob_padding_below = ob_bg_height - ob_padding_above -
 			texture_box.height;
 
@@ -599,7 +632,7 @@ static void render_titlebar(struct sway_output *output,
 		memcpy(&color, colors->background, sizeof(float) * 4);
 		premultiply_alpha(color, con->alpha);
 		box.x = texture_box.x + round(output_x * output_scale);
-		box.y = round((y + titlebar_border_thickness) * output_scale);
+		box.y = round((y + titlebar_border_top_thickness) * output_scale);
 		box.width = texture_box.width;
 		box.height = ob_padding_above;
 		render_rect(output, output_damage, &box, color);
@@ -646,9 +679,9 @@ static void render_titlebar(struct sway_output *output,
 
 	// Padding on left side
 	box.x = x + titlebar_border_thickness;
-	box.y = y + titlebar_border_thickness;
+	box.y = y + titlebar_border_top_thickness;
 	box.width = titlebar_h_padding - titlebar_border_thickness;
-	box.height = (titlebar_v_padding - titlebar_border_thickness) * 2 +
+	box.height = titlebar_v_padding * 2 - titlebar_border_vert_thickness +
 		config->font_height;
 	scale_box(&box, output_scale);
 	int left_x = ob_left_x + round(output_x * output_scale);
@@ -659,9 +692,9 @@ static void render_titlebar(struct sway_output *output,
 
 	// Padding on right side
 	box.x = x + width - titlebar_h_padding;
-	box.y = y + titlebar_border_thickness;
+	box.y = y + titlebar_border_top_thickness;
 	box.width = titlebar_h_padding - titlebar_border_thickness;
-	box.height = (titlebar_v_padding - titlebar_border_thickness) * 2 +
+	box.height = titlebar_v_padding * 2 - titlebar_border_vert_thickness +
 		config->font_height;
 	scale_box(&box, output_scale);
 	int right_rx = ob_right_x + ob_right_width + round(output_x * output_scale);
@@ -685,9 +718,19 @@ static void render_top_border(struct sway_output *output,
 	struct wlr_box box;
 	float color[4];
 	float output_scale = output->wlr_output->scale;
+	list_t *siblings = container_get_current_siblings(con);
+	enum sway_container_layout layout =
+		container_current_parent_layout(con);
+	enum sway_container_fill_order fill_order =
+		container_current_parent_fill_order(con);
 
 	// Child border - top edge
-	memcpy(&color, colors->child_border, sizeof(float) * 4);
+	if (!container_is_floating(con) && siblings->length == 1
+			&& layout == L_VERT && fill_order == LFO_REVERSE) {
+		memcpy(&color, colors->indicator, sizeof(float) * 4);
+	} else {
+		memcpy(&color, colors->child_border, sizeof(float) * 4);
+	}
 	premultiply_alpha(color, con->alpha);
 	box.x = floor(state->x);
 	box.y = floor(state->y);

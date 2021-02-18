@@ -22,7 +22,7 @@ static enum sway_container_layout parse_layout_string(char *s) {
 }
 
 static const char expected_syntax[] =
-	"Expected 'layout default|tabbed|stacking|splitv|splith' or "
+	"Expected 'layout default|tabbed|stacking|splitv|splith [reverse]' or "
 	"'layout toggle [split|all]' or "
 	"'layout toggle [split|tabbed|stacking|splitv|splith] [split|tabbed|stacking|splitv|splith]...'";
 
@@ -96,7 +96,14 @@ static enum sway_container_layout get_layout_toggle(int argc, char **argv,
 static enum sway_container_layout get_layout(int argc, char **argv,
 		enum sway_container_layout layout,
 		enum sway_container_layout prev_split_layout,
-		struct sway_output *output) {
+		struct sway_output *output,
+		enum sway_container_fill_order *out_fill_order) {
+	if (argc == 2 && strcasecmp(argv[1], "reverse") == 0) {
+		*out_fill_order = LFO_REVERSE;
+	} else {
+		*out_fill_order = LFO_DEFAULT;
+	}
+
 	// Check if assigned directly
 	enum sway_container_layout parsed = parse_layout_string(argv[0]);
 	if (parsed != L_NONE) {
@@ -108,6 +115,7 @@ static enum sway_container_layout get_layout(int argc, char **argv,
 	}
 
 	if (strcasecmp(argv[0], "toggle") == 0) {
+		*out_fill_order = LFO_DEFAULT;
 		return get_layout_toggle(argc, argv, layout, prev_split_layout, output);
 	}
 
@@ -141,38 +149,45 @@ struct cmd_results *cmd_layout(int argc, char **argv) {
 	// an abstract way.
 	enum sway_container_layout new_layout = L_NONE;
 	enum sway_container_layout old_layout = L_NONE;
+	enum sway_container_fill_order old_fill_order = LFO_DEFAULT;
+	enum sway_container_fill_order new_fill_order = LFO_DEFAULT;
 	if (container) {
+		old_fill_order = container->pending.fill_order;
 		old_layout = container->pending.layout;
 		new_layout = get_layout(argc, argv,
 				container->pending.layout, container->prev_split_layout,
-				container->pending.workspace->output);
+				container->pending.workspace->output, &new_fill_order);
 	} else {
 		old_layout = workspace->layout;
+		old_fill_order = workspace->fill_order;
 		new_layout = get_layout(argc, argv,
 				workspace->layout, workspace->prev_split_layout,
-				workspace->output);
+				workspace->output, &new_fill_order);
 	}
 	if (new_layout == L_NONE) {
 		return cmd_results_new(CMD_INVALID, expected_syntax);
 	}
-	if (new_layout != old_layout) {
+	if (new_layout != old_layout || new_fill_order != old_fill_order) {
 		if (container) {
 			if (old_layout != L_TABBED && old_layout != L_STACKED) {
 				container->prev_split_layout = old_layout;
 			}
 			container->pending.layout = new_layout;
+			container->pending.fill_order = new_fill_order;
 			container_update_representation(container);
 		} else if (config->handler_context.container) {
 			// i3 avoids changing workspace layouts with a new container
 			// https://github.com/i3/i3/blob/3cd1c45eba6de073bc4300eebb4e1cc1a0c4479a/src/con.c#L1817
 			container = workspace_wrap_children(workspace);
 			container->pending.layout = new_layout;
+			container->pending.fill_order = new_fill_order;
 			container_update_representation(container);
 		} else {
 			if (old_layout != L_TABBED && old_layout != L_STACKED) {
 				workspace->prev_split_layout = old_layout;
 			}
 			workspace->layout = new_layout;
+			workspace->fill_order = new_fill_order;
 			workspace_update_representation(workspace);
 		}
 		if (root->fullscreen_global) {

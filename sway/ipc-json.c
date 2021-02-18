@@ -53,6 +53,17 @@ static const char *ipc_json_layout_description(enum sway_container_layout l) {
 	return "none";
 }
 
+static const char *ipc_json_layout_fill_order_description(
+		enum sway_container_fill_order fill_layout) {
+	switch (fill_layout) {
+	case LFO_DEFAULT:
+		return "default";
+	case LFO_REVERSE:
+		return "reverse";
+	}
+	return "unknown";
+}
+
 static const char *ipc_json_orientation_description(enum sway_container_layout l) {
 	switch (l) {
 	case L_VERT:
@@ -219,6 +230,9 @@ static json_object *ipc_json_create_node(int id, const char* type, char *name,
 	json_object_object_add(object, "layout",
 			json_object_new_string(
 				ipc_json_layout_description(L_HORIZ)));
+	json_object_object_add(object, "layout_fill_order",
+			json_object_new_string(
+				ipc_json_layout_fill_order_description(LFO_DEFAULT)));
 
 	// set default values to be compatible with i3
 	json_object_object_add(object, "border",
@@ -250,6 +264,10 @@ static void ipc_json_describe_output(struct sway_output *output,
 			json_object_new_boolean(wlr_output->enabled));
 	json_object_object_add(object, "primary", json_object_new_boolean(false));
 	json_object_object_add(object, "layout", json_object_new_string("output"));
+	json_object_object_add(object, "layout_fill_order",
+			json_object_new_string(
+				ipc_json_layout_fill_order_description(
+					config->default_fill_order)));
 	json_object_object_add(object, "orientation",
 			json_object_new_string(
 				ipc_json_orientation_description(L_NONE)));
@@ -402,6 +420,10 @@ static json_object *ipc_json_describe_scratchpad_output(void) {
 					"__i3", false, output_focus, &box);
 	json_object_object_add(output, "layout",
 			json_object_new_string("output"));
+	json_object_object_add(output, "layout_fill_order",
+			json_object_new_string(
+				ipc_json_layout_fill_order_description(
+					config->default_fill_order)));
 
 	json_object *nodes = json_object_new_array();
 	json_object_array_add(nodes, workspace);
@@ -437,6 +459,9 @@ static void ipc_json_describe_workspace(struct sway_workspace *workspace,
 	json_object_object_add(object, "layout",
 			json_object_new_string(
 				ipc_json_layout_description(workspace->layout)));
+	json_object_object_add(object, "layout_fill_order",
+			json_object_new_string(
+				ipc_json_layout_fill_order_description(workspace->fill_order)));
 	json_object_object_add(object, "orientation",
 			json_object_new_string(
 				ipc_json_orientation_description(workspace->layout)));
@@ -596,6 +621,10 @@ static void ipc_json_describe_container(struct sway_container *c, json_object *o
 	json_object_object_add(object, "layout",
 			json_object_new_string(
 				ipc_json_layout_description(c->pending.layout)));
+
+	json_object_object_add(object, "layout_fill_order",
+			json_object_new_string(
+				ipc_json_layout_fill_order_description(c->pending.fill_order)));
 
 	json_object_object_add(object, "orientation",
 			json_object_new_string(

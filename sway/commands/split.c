@@ -9,7 +9,7 @@
 #include "sway/input/seat.h"
 #include "log.h"
 
-static struct cmd_results *do_split(int layout) {
+static struct cmd_results *do_split(int layout, int fill_order) {
 	struct sway_container *con = config->handler_context.container;
 	struct sway_workspace *ws = config->handler_context.workspace;
 	if (con) {
@@ -18,9 +18,13 @@ static struct cmd_results *do_split(int layout) {
 			return cmd_results_new(CMD_FAILURE,
 					"Cannot split a hidden scratchpad container");
 		}
-		container_split(con, layout);
+		if (fill_order == -1)
+			fill_order = con->pending.fill_order;
+		container_split(con, layout, fill_order);
 	} else {
-		workspace_split(ws, layout);
+		if (fill_order == -1)
+			fill_order = ws->fill_order;
+		workspace_split(ws, layout, fill_order);
 	}
 
 	if (root->fullscreen_global) {
@@ -42,22 +46,36 @@ struct cmd_results *cmd_split(int argc, char **argv) {
 				"Can't run this command while there's no outputs connected.");
 	}
 	if (strcasecmp(argv[0], "v") == 0 || strcasecmp(argv[0], "vertical") == 0) {
-		return do_split(L_VERT);
+		return do_split(L_VERT, -1);
 	} else if (strcasecmp(argv[0], "h") == 0 ||
 			strcasecmp(argv[0], "horizontal") == 0) {
-		return do_split(L_HORIZ);
+		return do_split(L_HORIZ, -1);
 	} else if (strcasecmp(argv[0], "t") == 0 ||
 			strcasecmp(argv[0], "toggle") == 0) {
 		struct sway_container *focused = config->handler_context.container;
 
 		if (focused && container_parent_layout(focused) == L_VERT) {
-			return do_split(L_HORIZ);
+			return do_split(L_HORIZ, -1);
 		} else {
-			return do_split(L_VERT);
+			return do_split(L_VERT, -1);
 		}
+	} else if (strcasecmp(argv[0], "l") == 0||
+			strcasecmp(argv[0], "left") == 0) {
+		do_split(L_HORIZ, LFO_REVERSE);
+	} else if (strcasecmp(argv[0], "r") == 0 ||
+			strcasecmp(argv[0], "right") == 0) {
+		do_split(L_HORIZ, LFO_DEFAULT);
+	} else if (strcasecmp(argv[0], "u") == 0 ||
+			strcasecmp(argv[0], "up") == 0) {
+		do_split(L_VERT, LFO_REVERSE);
+	} else if (strcasecmp(argv[0], "d") == 0 ||
+			strcasecmp(argv[0], "down") == 0) {
+		do_split(L_VERT, LFO_DEFAULT);
 	} else {
 		return cmd_results_new(CMD_FAILURE,
-			"Invalid split command (expected either horizontal or vertical).");
+			"Invalid split command (expected one of "
+			"vertical|v|horizontal|h|toggle|t"
+			"|left|l|right|r|up|u|down|d).");
 	}
 	return cmd_results_new(CMD_SUCCESS, NULL);
 }
@@ -67,7 +85,7 @@ struct cmd_results *cmd_splitv(int argc, char **argv) {
 	if ((error = checkarg(argc, "splitv", EXPECTED_EQUAL_TO, 0))) {
 		return error;
 	}
-	return do_split(L_VERT);
+	return do_split(L_VERT, -1);
 }
 
 struct cmd_results *cmd_splith(int argc, char **argv) {
@@ -75,7 +93,7 @@ struct cmd_results *cmd_splith(int argc, char **argv) {
 	if ((error = checkarg(argc, "splith", EXPECTED_EQUAL_TO, 0))) {
 		return error;
 	}
-	return do_split(L_HORIZ);
+	return do_split(L_HORIZ, -1);
 }
 
 struct cmd_results *cmd_splitt(int argc, char **argv) {
@@ -87,8 +105,8 @@ struct cmd_results *cmd_splitt(int argc, char **argv) {
 	struct sway_container *con = config->handler_context.container;
 
 	if (con && container_parent_layout(con) == L_VERT) {
-		return do_split(L_HORIZ);
+		return do_split(L_HORIZ, -1);
 	} else {
-		return do_split(L_VERT);
+		return do_split(L_VERT, -1);
 	}
 }

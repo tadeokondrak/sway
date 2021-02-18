@@ -797,9 +797,14 @@ struct sway_container *workspace_add_tiling(struct sway_workspace *workspace,
 		container_detach(con);
 	}
 	if (config->default_layout != L_NONE) {
-		con = container_split(con, config->default_layout);
+		con = container_split(
+			con, config->default_layout, config->default_fill_order);
 	}
-	list_add(workspace->tiling, con);
+	if (workspace->fill_order == LFO_DEFAULT) {
+		list_add(workspace->tiling, con);
+	} else {
+		list_insert(workspace->tiling, 0, con);
+	}
 	con->pending.workspace = workspace;
 	container_for_each_child(con, set_workspace, NULL);
 	container_handle_fullscreen_reparent(con);
@@ -839,7 +844,8 @@ struct sway_container *workspace_insert_tiling(struct sway_workspace *workspace,
 		container_detach(con);
 	}
 	if (config->default_layout != L_NONE) {
-		con = container_split(con, config->default_layout);
+		con = container_split(
+			con, config->default_layout, config->default_fill_order);
 	}
 	workspace_insert_tiling_direct(workspace, con, index);
 	return con;
@@ -895,17 +901,22 @@ void workspace_add_gaps(struct sway_workspace *ws) {
 }
 
 struct sway_container *workspace_split(struct sway_workspace *workspace,
-		enum sway_container_layout layout) {
+		enum sway_container_layout layout,
+		enum sway_container_fill_order fill_order) {
 	if (workspace->tiling->length == 0) {
 		workspace->prev_split_layout = workspace->layout;
 		workspace->layout = layout;
+		workspace->fill_order = fill_order;
 		return NULL;
 	}
 
 	enum sway_container_layout old_layout = workspace->layout;
+	enum sway_container_fill_order old_fill_order = workspace->fill_order;
 	struct sway_container *middle = workspace_wrap_children(workspace);
 	workspace->layout = layout;
+	workspace->fill_order = fill_order;
 	middle->pending.layout = old_layout;
+	middle->pending.fill_order = old_fill_order;
 
 	struct sway_seat *seat;
 	wl_list_for_each(seat, &server.input->seats, link) {
@@ -918,13 +929,15 @@ struct sway_container *workspace_split(struct sway_workspace *workspace,
 }
 
 void workspace_update_representation(struct sway_workspace *ws) {
-	size_t len = container_build_representation(ws->layout, ws->tiling, NULL);
+	size_t len = container_build_representation(
+		ws->layout, ws->fill_order, ws->tiling, NULL);
 	free(ws->representation);
 	ws->representation = calloc(len + 1, sizeof(char));
 	if (!sway_assert(ws->representation, "Unable to allocate title string")) {
 		return;
 	}
-	container_build_representation(ws->layout, ws->tiling, ws->representation);
+	container_build_representation(
+		ws->layout, ws->fill_order, ws->tiling, ws->representation);
 }
 
 void workspace_get_box(struct sway_workspace *workspace, struct wlr_box *box) {
